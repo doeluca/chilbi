@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Chilbi Bestellung</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <img src="logo.png" alt="Logo SVD" />
+    <h1>Sportverein Dällikon</h1>
+
+    <label for="table"><h3>Tischnummer</h3></label>
+    <select id="table">
+      <option value="">Tischnummer wählen…</option>
+    </select>
+
+    <div id="menu"></div>
+
+    <div class="cart">
+      <h2>Warenkorb</h2>
+      <ul id="cart-list"></ul>
+      <p><strong>Gesamtpreis:</strong> <span id="total">0.00</span> CHF</p>
+      <button onclick="payWithTwint()">Mit TWINT bezahlen</button>
+    </div>
+
+    <div
+      id="qr-modal"
+      style="
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        text-align: center;
+      "
+    >
+      <div
+        style="
+          margin-top: 50px;
+          background: white;
+          padding: 20px;
+          display: inline-block;
+        "
+      >
+        <h3>Mit TWINT bezahlen</h3>
+        <p>Betrag: <span id="twint-amount"></span> CHF</p>
+        <img src="twint-qr.png" alt="TWINT QR" width="200" />
+        <br /><br />
+        <button onclick="submitOrder()">Zahlung abgeschlossen</button>
+      </div>
+    </div>
+
+    <script>
+      const select = document.getElementById("table");
+      for (let i = 1; i <= 55; i++) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.text = i;
+        select.appendChild(opt);
+      }
+
+      const menuData = {
+        Weisswein: [
+          ["Riesling-Sylvaner - Wolfacher Buchs (50 cl)", 19.0],
+          ["Epesses - Trois Soleils (50 cl)", 18.0],
+        ],
+        Rotwein: [
+          ["Blauburgunder - Wolfacher Buchs (50 cl)", 19.0],
+          ["Merlot - Ticino Rosso Tisin (50 cl)", 18.0],
+        ],
+        Roséwein: [["Federweisser - Wolfacher Buchs (50 cl)", 18.0]],
+        Bier: [
+          ["Feldschlösschen Lager (50 cl)", 6.0],
+          ["Ahoi Hill Bier Hell (33 cl)", 6.0],
+          ["Appenz. Zitronen Panache (33 cl)", 5.0],
+          ["Eve Pink Mimosa (27 cl)", 5.0],
+          ["Eve Strawberry Mojito (27 cl)", 5.0],
+          ["Feldschlösschen Alkoholfrei (50 cl)", 5.0],
+        ],
+        Moscht: [
+          ["Möhl - Saft vom Fass (50 cl)", 6.0],
+          ["Möhl - Saft vom Fass alkoholfrei (50 cl)", 5.0],
+        ],
+        Getränke: [
+          ["Mineralwasser (50 cl)", 4.0],
+          ["Wasser mit Kohlensäure", 4.0],
+          ["Wasser ohne Kohlensäure", 4.0],
+          ["Sinalco", 4.0],
+          ["Coca-Cola", 4.0],
+          ["Coca-Cola Zero", 4.0],
+          ["Eistee", 4.0],
+          ["Rivella Rot", 4.0],
+          ["Rivella Blau", 4.0],
+          ["Apfelschorle", 4.0],
+          ["Citro", 4.0],
+          ["Süssmost aus Dällikon", 4.0],
+        ],
+        Speisen: [
+          ["Steak mit Brot", 13.0],
+          ["Steak mit Pommes frites", 19.0],
+          ["Steak mit Kartoffelsalat", 19.0],
+          ["Kalbsbratwurst mit Brot", 6.0],
+          ["Kalbsbratwurst mit Pommes frites", 12.0],
+          ["Kalbsbratwurst mit Kartoffelsalat", 12.0],
+          ["Cervelat mit Brot", 5.0],
+          ["Cervelat mit Pommes frites", 11.0],
+          ["Cervelat mit Kartoffelsalat", 11.0],
+          ["Hamburger", 9.0],
+          ["Hamburger mit Pommes frites", 15.0],
+          ["Fischknusperli mit Tartarsauce", 8.0],
+          ["Fischknusperli mit Pommes frites", 14.0],
+        ],
+        "Vegetarische Speisen": [
+          ["Vegetarischer Burger", 9.0],
+          ["Vegetarischer Burger mit Pommes frites", 15.0],
+          ["Salatteller", 9.0],
+          ["Kartoffelsalat als Beilage", 6.0],
+          ["Pommes frites", 6.0],
+        ],
+        Kaffee: [
+          ["Kaffee Crème", 4.0],
+          ["Espresso", 4.0],
+          ["Turnerkafi (mit Amaretto)", 7.0],
+        ],
+        Dessert: [["Feini Nuss- und Mandelgipfel", 4.0]],
+      };
+
+      const cart = [];
+
+      function renderMenu() {
+        const menu = document.getElementById("menu");
+        for (const [category, items] of Object.entries(menuData)) {
+          const catEl = document.createElement("div");
+          catEl.innerHTML = `<div class="category"><h3>${category}</h3></div>`;
+          items.forEach(([name, price]) => {
+            const itemEl = document.createElement("div");
+            itemEl.className = "item";
+            itemEl.innerHTML = `${name} – CHF ${price.toFixed(2)}
+              <button onclick='addToCart("${name}", ${price})'>+</button>`;
+            catEl.appendChild(itemEl);
+          });
+          menu.appendChild(catEl);
+        }
+      }
+
+      function addToCart(name, price) {
+        const item = cart.find((i) => i.name === name);
+        if (item) item.qty++;
+        else cart.push({ name, price, qty: 1 });
+        updateCart();
+      }
+
+      function updateCart() {
+        const list = document.getElementById("cart-list");
+        list.innerHTML = "";
+        let total = 0;
+        cart.forEach((item) => {
+          total += item.price * item.qty;
+          const li = document.createElement("li");
+          li.textContent = `${item.name} x${item.qty} – CHF ${(
+            item.price * item.qty
+          ).toFixed(2)}`;
+          list.appendChild(li);
+        });
+        document.getElementById("total").textContent = total.toFixed(2);
+      }
+
+      function payWithTwint() {
+        if (!cart.length) return alert("Warenkorb ist leer!");
+        document.getElementById("twint-amount").textContent =
+          document.getElementById("total").textContent;
+        document.getElementById("qr-modal").style.display = "block";
+      }
+
+      function submitOrder() {
+        const table = document.getElementById("table").value;
+        if (!table) return alert("Tischnummer fehlt!");
+
+        const data = {
+          table: table,
+          cart: cart,
+          total: parseFloat(document.getElementById("total").textContent),
+        };
+
+        fetch(
+          "https://script.google.com/macros/s/AKfycbyagqtpybI1chEHx7hWOf4DKQgHjrGCPsq6caMVPfOGEGsPj6UxioKgk2LAIwtM6oWI/exec",
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          }
+        );
+
+        generatePDF(data);
+        alert("Bestellung gesendet!");
+        cart.length = 0;
+        updateCart();
+        document.getElementById("qr-modal").style.display = "none";
+      }
+
+      function generatePDF(order) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("Chilbi Bestellung", 10, 10);
+        doc.text(`Tischnummer: ${order.table}`, 10, 20);
+        let y = 30;
+        order.cart.forEach((item) => {
+          doc.text(
+            `${item.name} x${item.qty} – CHF ${(item.qty * item.price).toFixed(
+              2
+            )}`,
+            10,
+            y
+          );
+          y += 10;
+        });
+        doc.text(`Total: CHF ${order.total.toFixed(2)}`, 10, y + 10);
+        doc.save(`Rechnung_Tisch${order.table}.pdf`);
+      }
+
+      renderMenu();
+    </script>
+  </body>
+</html>
